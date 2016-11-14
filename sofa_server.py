@@ -8,8 +8,8 @@ from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import reactor
 from collections import defaultdict
 
-from sofa.sofa_reco import Recommender
-from sofa.sofa_db import DBManager, Genre
+from sofa_reco import Recommender
+from sofa_db import DBManager, Genre
 
 #==============================================================================
 # Main classes

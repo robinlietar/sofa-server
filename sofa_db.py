@@ -550,3 +550,4 @@ class DBManager():
         pendings = pendings.filter(User.pending.any(Film.id))
         pendings = pendings.filter(User.name==name).filter(User.pwd==pwd)
         return [p[1] for p in pendings]
+

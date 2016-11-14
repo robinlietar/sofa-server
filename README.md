@@ -13,4 +13,5 @@ Therefore, it can be used as an example if you are willing to:
 You will need to install blist, sqlalchemy In the terminal
 pip install blist
 pip install sqlalchemy
-pip install twisted
+pip install twisted (use condo install twisted if you get an error)
+
