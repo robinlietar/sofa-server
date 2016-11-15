@@ -6,7 +6,7 @@ import time
 from random import randint
 
 GENRES = ['Action Film', 'Adventure Film', 'Animation', 'Comedy', 'Drama',
-          'Family', 'Fantasy', 'Mystery', 'Romance Film', 'Science Fiction', 
+          'Family', 'Fantasy', 'Mystery', 'Romance Film', 'Science Fiction',
           'Thriller']
 
 if __name__ == "__main__":

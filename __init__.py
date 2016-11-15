@@ -1,3 +1,4 @@
-from sofa.sofa_server import ServerProtocol
+from sofa_server import ServerProtocol
   
 ServerProtocol.launch()
+

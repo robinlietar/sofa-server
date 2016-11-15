@@ -10,8 +10,8 @@ Therefore, it can be used as an example if you are willing to:
 - Develop and use a recommendation algorythm. I personnaly relied on this paper to write my algorythm: http://editions-rnti.fr/render_pdf.php?p=1000501&p10
 
 ## Installation
-You will need to install blist, sqlalchemy In the terminal
-pip install blist
-pip install sqlalchemy
-pip install twisted (use condo install twisted if you get an error)
+You will need to install blist, sqlalchemy In the terminal.
+- pip install blist
+- pip install sqlalchemy
+- pip install twisted (use condo install twisted if you get an error)
 

@@ -23,49 +23,49 @@ class AppFilm():
         self.id = id
         self.nb_rating = 0
         self.rating = 0
-        
+
     def add_rating(self, rating):
         self.rating += rating
         self.nb_rating += 1
-        
+
 
 class Sofa():
     """Base class for Sofas."""
     genres = Genre.__genres__
-    
+
     def __init__(self, name):
         self._name = name
         self._people = set()
         self.waiting_clients = []
         self.last_update = dt.datetime.now()
         self.preferences = {c:[] for c in self.genres}
-        
+
     @property
     def name(self):
         return self._name
-    
+
     @name.setter
     def name(self, new_name):
         self._name = new_name
         self.last_update = dt.datetime.now()
-        
+
     @property
     def nb_people(self):
         return len(self._people)
-    
+
     @property
     def people(self):
         return self._people
-    
+
     @people.setter
     def people(self, new_set):
         self._people = new_set
-        self.last_update = dt.datetime.now()       
-        
-        
+        self.last_update = dt.datetime.now()
+
+
 class SofaManager():
     """Class to manage the existing Sofas."""
-    genres = Genre.__genres__  
+    genres = Genre.__genres__
     class Duplicate(Exception):
         """To be raised when a Sofa already exists."""
         pass
@@ -76,13 +76,13 @@ class SofaManager():
         self.first_recommandation = defaultdict(lambda: None)
         self.final_recommandation = defaultdict(lambda: None)
         self.ctrl_thread = False
-        
+
     def __enter__(self):
         self.start_ctrl_thread()
-        
+
     def __exit__(self, type, value, tb):
         self.stop_ctrl_thread()
-        
+
     def start_ctrl_thread(self, step=300, max_age=600):
         self.ctrl_thread = True
         def ctrl_thread():
@@ -97,33 +97,33 @@ class SofaManager():
                 timer = threading.Timer(step, ctrl_thread)
                 timer.start()
         ctrl_thread()
-                
+
     def stop_ctrl_thread(self):
         self.ctrl_thread = False
-        
+
     def new_sofa(self, sname):
         if self.sofas[sname]:
             raise self.Duplicate('The sofa %s already exists' % sname)
         else:
             self.sofas[sname] = Sofa(sname)
-            
+
     def add_preferences(self, uname, pwd, sname, pref_list):
         for c, p in zip(self.genres, pref_list):
             self.sofas[sname].preferences[c].append(int(p))
         s = self.sofas[sname].people
         s.add((uname, pwd))
-        self.sofas[sname].people = s 
-        
+        self.sofas[sname].people = s
+
     def get_nb_people(self, sname):
         return self.sofas[sname].nb_people
-    
+
     def recommend(self, sname):
         sofa = self.sofas[sname]
         ratings = zip(*[sofa.preferences[c] for c in self.genres])
         films = [AppFilm(f[0], f[1], f[2])
                  for f in self.recommender.recommend(ratings, sofa.people)]
         return films
-     
+
     def send_first_recommandation(self, sname):
         self.first_recommandation[sname] = films = self.recommend(sname)
         for client in self.sofas[sname].waiting_clients:
@@ -149,18 +149,18 @@ class SofaManager():
             for client in self.sofas[sname].waiting_clients:
                 client.write(str(result.id) + ';' + result.poster)
             self.sofas[sname].waiting_clients = []
-    
+
     def delete_sofa(self, sname):
         try: self.sofas.pop(sname)
         except KeyError: pass
         try: self.first_recommandation.pop(sname)
         except KeyError: pass
         try: self.final_recommandation.pop(sname)
-        except KeyError: pass       
-        
+        except KeyError: pass
+
 class ServerProtocol(Protocol):
     """A server Class. Deals with the messages received from users."""
-    
+
     @classmethod
     def launch(cls):
         cls.sofa_manager = SofaManager()
@@ -168,10 +168,11 @@ class ServerProtocol(Protocol):
         with cls.sofa_manager:
             factory = Factory()
             factory.protocol = cls
-            reactor.listenTCP(80, factory)
+            reactor.listenTCP(8000, factory)
             print("Server started listening.")
             reactor.run()
-        
+
+
     def connectionMade(self):
         print("a client connected")
 
@@ -186,25 +187,35 @@ class ServerProtocol(Protocol):
             self.transport.write('NULL')
             msg = 'Bad data sent. Error generated: (%s) ' % str(type(e))
             print(msg + str(e))
-    
+
     def reply(self, rdata):
         data = rdata.strip(';').split(';')
         request, name = int(data[0]), data[1]
-        
-        # Recommendation        
+        print(data)
+        # added that to remove the \r\n error that we get
+        data = data[:len(data)-1]
+        print(data)
+        #defining the global variable before
+
+        # Recommendation
+        #create sofa
         if request == 10:
-            try: 
+            try:
                 self.sofa_manager.new_sofa(name)
                 return '1'
-            except SofaManager.Duplicate: 
+            except SofaManager.Duplicate:
                 return '0'
+        #find sofa
         elif request == 11:
             return '1' if self.sofa_manager.sofas[name] else '0'
+        #add preferences
         elif request == 2:
             self.sofa_manager.add_preferences(name, data[2], data[3], data[4:])
             return '1'
+        #count number person in the sofa
         elif request == 3:
             return str(self.sofa_manager.sofas[name].nb_people)
+        # ?
         elif request == 40:
             client = self.transport
             self.sofa_manager.sofas[name].waiting_clients.append(client)
@@ -222,17 +233,21 @@ class ServerProtocol(Protocol):
             print('Final recommendation sent!')
         elif request == 7:
             self.sofa_manager.delete_sofa(name)
-        
+
         #DB modification
+        #trying to log in
         elif request == 8:
             pwd = data[2]
             return str(self.db_manager.check_log_in_info(name, pwd))
         elif request == 90:
             pwd, status = data[2:]
+            print(status)
             if status == '1':
                 result = self.db_manager.check_user(name, pwd)
             elif status == '0':
+                print('status est de 0')
                 result = self.db_manager.add_user(name, pwd)
+                print (result)
             if result is None:
                 return '0::-'
             elif result == 1:
@@ -240,8 +255,9 @@ class ServerProtocol(Protocol):
             else:
                 res = ';'.join([str(r.id) for r in result])
                 res += '::' + ';'.join([r.poster for r in result])
-                res = '1::' + res 
-                return res 
+                res = '1::' + res
+                return res
+        #delete user
         elif request == 91:
             pwd = data[2]
             return str(self.db_manager.delete_user(name, pwd))
@@ -251,9 +267,11 @@ class ServerProtocol(Protocol):
             ids, choices = [int(i) for i in ids], [int(c) for c in choices]
             rkgs = zip(ids, choices)
             return str(self.db_manager.update_user_class(name, pwd, rkgs))
+        # add user to followings
         elif request == 100:
             pwd, fname = data[2:]
             return str(self.db_manager.add_to_followings(name, pwd, fname))
+        # delete user from followings
         elif request == 110:
             pwd, fname = data[2:]
             r = self.db_manager.delete_from_followings(name, pwd, fname)
@@ -292,5 +310,3 @@ class ServerProtocol(Protocol):
             descr = result.pop('descr')
             res = ';'.join('::'.join([k, v]) for k, v in result.items())
             return res + ';descr::' + descr
-            
-            

@@ -10,20 +10,34 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.expression import func
 from collections import defaultdict
+import psycopg2
+from io import open
+
+module_dir = os.path.dirname(sys.argv[0])
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 if __name__ == "__main__":
     module_dir = os.path.dirname(sys.argv[0])
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
 else:
-    module_dir = os.path.dirname(__file__)
+    print('')
+    #module_dir = os.path.dirname(__file__)
 
 delimiter = ';'
 
-HOST = 'sofadb'
+HOST = 'localhost'
 USER = 'usr'
 PASSWORD = 'pwd'
-DATABASE = 'SofaDB'
+DATABASE = 'sofadb'
 
 Base = declarative_base()
+
+def UnicodeDictReader(utf8_data, **kwargs):
+    csv_reader = csv.DictReader(utf8_data, **kwargs)
+    for row in csv_reader:
+        yield {key: unicode(value, 'utf-8') for key, value in row.iteritems()}
 
 class UserClass(Base):
     __tablename__ = 'user_classes'
@@ -47,8 +61,8 @@ class User(Base):
     liked = Column(ARRAY(Integer), default=[])
     unliked = Column(ARRAY(Integer), default=[])
     favorite = Column(ARRAY(Integer), default=[])
-    follower = Column(ARRAY(String(150)), default=[])
-    followed = Column(ARRAY(String(150)), default=[])
+    followers = Column(ARRAY(String(150)), default=[])
+    followings = Column(ARRAY(String(150)), default=[])
 
     def __init__(self, name, pwd):
         self.name = name
@@ -56,7 +70,7 @@ class User(Base):
 
     def __repr__(self):
         return "User(name=%r)" % self.name
-        
+
 
 class Genre(Base):
     __tablename__ = 'genres'
@@ -65,9 +79,9 @@ class Genre(Base):
                   'Thriller']
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), nullable=False, index=True)
-    
+
     def __init__(self, name):
-        self.name = name       
+        self.name = name
 
     def __repr__(self):
         return "Genre(name=%r)" % self.name
@@ -87,21 +101,21 @@ class Film(Base):
     trailer = Column(String(400))
     runtime = Column(Integer, index=True)
     descr = Column(String(500))
-    
+
     def __init__(self, title, poster, **kwargs):
         self.title = title
         self.poster = poster
         for k, v in kwargs.items():
-            setattr(self, k, v)  
-        
+            setattr(self, k, v)
+
     @property
     def genres(self):
         if not hasattr(self, '_genres'):
             nb_genres = len(Genre.__genres__)
             setattr(self, '_genres', [1 if i in self.genres_id else 0
                                       for i in range(1, nb_genres + 1)])
-        return self._genres    
-    
+        return self._genres
+
     @property
     def genre_names(self):
         if not hasattr(self, '_genre_names'):
@@ -109,65 +123,76 @@ class Film(Base):
             for i, g in enumerate(self.genres):
                 if g: gnames.append(Genre.__genres__[i])
             setattr(self, '_genre_names', gnames)
-        return self._genre_names 
+        return self._genre_names
 
     def __repr__(self):
         return "Film(title=%r)" % self.title
-    
-    
+
+
 class ClassRanking(Base):
     __tablename__ = 'class_rankings'
     id = Column(Integer, primary_key=True)
     class_id = Column(Integer, ForeignKey(UserClass.id), index=True)
     film_id = Column(Integer, ForeignKey(Film.id), index=True)
     rate = Column(Float)
-    
+
     def __init__(self, class_id, film_id, rate):
         self.class_id = class_id
         self.film_id = film_id
-        self.rate = rate       
+        self.rate = rate
 
     def __repr__(self):
         rep = "Ranking(class_id={0}, film_id={1})"
         return rep.format(self.class_id, self.film_id)
-    
-    
+
+
 class DBManager():
     __films_file__ = os.path.join(module_dir, 'db_data.csv')
     __sorting_file__ = os.path.join(module_dir, 'sorting_films.csv')
-    
+
     def __init__(self):
         db_uri = "postgresql+psycopg2://{User}:{Password}@{Host}/{Database}"
         db_uri = db_uri.format(User=USER,Password=PASSWORD,Host=HOST,
                                Database=DATABASE)
         self.engine = sqlalchemy.create_engine(db_uri)
-        
+
+        # # Added to try
+        # conn_string = "host='localhost' dbname='sofadb' user='postgres' password='secret'"
+        # print "Connecting to database\n	->%s" % (conn_string)
+        # conn = psycopg2.connect(conn_string)
+        # cursor = conn.cursor()
+    	# print "Connected!\n"
+
+
     def __create_tables__(self):
-        confirm = input("Are you sure you want to create the tables? Y/N: ")
+        print(self.engine)
+        # raw_input for python 2, input for 3
+        confirm = raw_input("Are you sure you want to create the tables? Y/N: ")
         if confirm == 'Y':
             Base.metadata.create_all(self.engine)
             self.fill_film_table()
             self.fill_genre_table()
             self.fill_user_class_table()
             self.fill_class_ranking_table()
-        
+
     def __delete_tables__(self):
-        confirm = input("Are you sure you want to delete the tables? Y/N: ")
+        confirm = raw_input("Are you sure you want to delete the tables? Y/N: ")
         if confirm == 'Y':
             Base.metadata.drop_all(self.engine)
-            
+
     def check_log_in_info(self, name, pwd):
         session = Session(self.engine)
         q = session.query(User).filter(User.name==name)
+        print(q)
         qu = q.filter(User.pwd==pwd).first()
         result = 1 if qu else 0
         session.close()
         return result
-    
+
     def fill_film_table(self):
         session = Session(self.engine)
-        with open(self.__films_file__, 'r') as f:
-            reader = csv.DictReader(f, delimiter=delimiter)
+        with open(self.__films_file__, 'r', encoding="utf-8") as f:
+            reader = UnicodeDictReader(f, delimiter=delimiter)
             genres = Genre.__genres__
             for film in reader:
                 if film['rating']:
@@ -222,16 +247,17 @@ class DBManager():
                 session.add(film_db)
         session.commit()
         session.close()
-        
+
     def fill_genre_table(self):
         session = Session(self.engine)
         for i, gname in enumerate(Genre.__genres__):
             genre = Genre(gname)
             genre.id = i + 1
             session.add(genre)
+            print(genre)
         session.commit()
         session.close()
-        
+
     def fill_user_class_table(self):
         session = Session(self.engine)
         for i in range(0, 4):
@@ -240,26 +266,29 @@ class DBManager():
             session.add(user_class)
         session.commit()
         session.close()
-        
+
     def fill_class_ranking_table(self):
         session = Session(self.engine)
-        with open(self.__films_file__, 'r') as f:
-            reader = csv.DictReader(f, delimiter=delimiter)
+        with open(self.__films_file__, 'r', encoding="utf-8") as f:
+            reader = UnicodeDictReader(f, delimiter=delimiter)
             films = {f['title']: f for f in reader}
             query = session.query(Film).filter(Film.title.in_(films.keys()))
             for f in query:
-                film = films[f.title]
+                try :
+                    film = films[f.title]
+                except IOError as e:
+                    print(e)
                 rkg1 = ClassRanking(1, f.id, float(film['class1']))
                 rkg2 = ClassRanking(2, f.id, float(film['class2']))
                 rkg3 = ClassRanking(3, f.id, float(film['class3']))
                 session.add_all([rkg1, rkg2, rkg3])
             session.commit()
             session.close()
-            
+
     def query_films(self):
         session = Session(self.engine)
         return session, session.query(Film)
-    
+
     def query_films_ratings(self, titles):
         session = Session(self.engine)
         q = session.query(ClassRanking.rate, Film.title, ClassRanking.class_id)
@@ -267,15 +296,15 @@ class DBManager():
         q = q.filter(Film.title.in_(titles))
         q = q.order_by(Film.title)
         return session, q
-    
+
     def get_film_info(self, fid):
         session = Session(self.engine)
         f = session.query(Film).filter(Film.id == fid).first()
-        keys = ['title', 'date', 'genre_names', 'descr', 'rating', 'poster', 
+        keys = ['title', 'date', 'genre_names', 'descr', 'rating', 'poster',
                 'trailer', 'runtime', 'actors', 'directors']
         result = {k: str(getattr(f, k, '-')) for k in keys}
         return result
-    
+
     def get_user_classes(self, people):
         session = Session(self.engine)
         names, pwds = zip(*people)
@@ -287,7 +316,7 @@ class DBManager():
                 user_classes[cid] += v
         user_classes = {k: v / len(names) for k, v in user_classes.items()}
         return user_classes
-    
+
     def get_people_film(self, people):
         session = Session(self.engine)
         names, pwds = zip(*people)
@@ -310,7 +339,7 @@ class DBManager():
         dfilms = session.query(Film).filter(Film.id.in_(dflist)).all()
         session.close()
         return lfilms, dfilms
-        
+
     def add_user(self, name, pwd):
         session = Session(self.engine)
         user = User(name, pwd)
@@ -326,8 +355,9 @@ class DBManager():
         except IntegrityError:
             result = None
         session.close()
+        #print('result est de '+str(result))
         return result
-    
+
     def update_user_class(self, name, pwd, rkgs):
         session = Session(self.engine)
         result = 0
@@ -357,7 +387,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-            
+
     def delete_user(self, name, pwd):
         result = 0
         session = Session(self.engine)
@@ -384,7 +414,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-        
+
     def add_to_followings(self, uname, upwd, fname):
         result = 0
         session = Session(self.engine)
@@ -402,7 +432,7 @@ class DBManager():
                 result = 1
         session.close()
         return result
-                
+
     def delete_from_followings(self, uname, upwd, fname):
         result = 0
         session = Session(self.engine)
@@ -420,7 +450,7 @@ class DBManager():
                 result = 1
         session.close()
         return result
-    
+
     def add_to_pendings(self, name, pwd, fids):
         result = 0
         session = Session(self.engine)
@@ -441,7 +471,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-            
+
     def delete_from_pendings(self, name, pwd, ftitle):
         result = 0
         session = Session(self.engine)
@@ -456,7 +486,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-    
+
     def add_to_liked(self, name, pwd, film):
         result = 0
         session = Session(self.engine)
@@ -473,7 +503,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-    
+
     def add_to_unliked(self, name, pwd, fids):
         result = 0
         session = Session(self.engine)
@@ -482,19 +512,19 @@ class DBManager():
         if user:
             for fid in fids:
                 if fid not in user.unliked:
-                    user.unliked.append(fid)  
-                    query.update({'unliked': user.unliked}) 
+                    user.unliked.append(fid)
+                    query.update({'unliked': user.unliked})
                 if fid in user.liked:
                     user.liked.remove(fid)
                     query.update({'liked': user.liked})
                 if fid in user.pending:
                     user.pending.remove(fid)
-                    query.update({'pending': user.pending})   
+                    query.update({'pending': user.pending})
             session.commit()
             result = 1
         session.close()
         return result
-            
+
     def add_to_favorites(self, name, pwd, film):
         result = 0
         session = Session(self.engine)
@@ -507,7 +537,7 @@ class DBManager():
             result = 1
         session.close()
         return result
-            
+
     def delete_from_favorites(self, name, pwd, film):
         result = 0
         session = Session(self.engine)
@@ -520,13 +550,13 @@ class DBManager():
             result = 1
         session.close()
         return result
-    
+
     def get_user(self, name, pwd):
         session = Session(self.engine)
         query = session.query(User).filter(User.name==name)
         user = query.filter(User.pwd==pwd).first()
         return user
-    
+
     def check_user(self, name, pwd):
         user = self.get_user(name, pwd)
         session = Session(self.engine)
@@ -543,11 +573,25 @@ class DBManager():
             result = None
         session.close()
         return result
-    
+
     def get_pendings(self, name, pwd):
         session = Session(self.engine)
-        pendings = session.query(User, Film)
+        pendings = session.qYuery(User, Film)
         pendings = pendings.filter(User.pending.any(Film.id))
         pendings = pendings.filter(User.name==name).filter(User.pwd==pwd)
         return [p[1] for p in pendings]
 
+
+
+#reload(sys)
+#sys.setdefaultencoding('utf8')
+
+
+print('a')
+
+dbm = DBManager()
+print(dbm.check_log_in_info('Robin','pwc'))
+print('a')
+print(dbm.add_user('Rob','pwc'))
+#dbm.__delete_tables__()
+#dbm.__create_tables__()

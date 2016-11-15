@@ -13,22 +13,22 @@ class Recommender():
     def __init__(self, genres=Genre.__genres__):
         self.db_manager = DBManager()
         self.genres = genres
-        self.coef = [0.144, 0.187, 0.037, 0.092, 0.095, 0.086, 0.104, 0.032, 
+        self.coef = [0.144, 0.187, 0.037, 0.092, 0.095, 0.086, 0.104, 0.032,
                      0.078, 0.081, 0.063]
-    
+
     @property
     def films(self):
         return self.db_manager.query_films()
-    
+
     def get_ratings(self, titles):
         return self.db_manager.query_films_ratings(titles)
-    
+
     def get_user_classes(self, people):
         return self.db_manager.get_user_classes(people)
-    
+
     def get_people_films(self, people):
         return self.db_manager.get_people_film(people)
-        
+
     def recommend(self, ratings, people):
         genres_ratings = [sum(self.coef[i]*r[i] for r in ratings)
                        for i in range(0, len(self.genres))]
@@ -64,3 +64,6 @@ class Recommender():
         result = sorted(result, key=lambda x: x[3])[-10:]
         session.close()
         return list(result)
+
+reco = Recommender()
+print (reco.films)
