@@ -193,7 +193,7 @@ class ServerProtocol(Protocol):
         request, name = int(data[0]), data[1]
         print(data)
         # added that to remove the \r\n error that we get
-        data = data[:len(data)-1]
+        #data = data[:len(data)-1]
         print(data)
         #defining the global variable before
 
@@ -239,11 +239,13 @@ class ServerProtocol(Protocol):
         elif request == 8:
             pwd = data[2]
             return str(self.db_manager.check_log_in_info(name, pwd))
+
         elif request == 90:
             pwd, status = data[2:]
             print(status)
             if status == '1':
                 result = self.db_manager.check_user(name, pwd)
+            # create user 90;Robinous;pwc;0;
             elif status == '0':
                 print('status est de 0')
                 result = self.db_manager.add_user(name, pwd)
@@ -267,7 +269,7 @@ class ServerProtocol(Protocol):
             ids, choices = [int(i) for i in ids], [int(c) for c in choices]
             rkgs = zip(ids, choices)
             return str(self.db_manager.update_user_class(name, pwd, rkgs))
-        # add user to followings
+        # add user to followings 100;Rob;pwc;Robinfijqe
         elif request == 100:
             pwd, fname = data[2:]
             return str(self.db_manager.add_to_followings(name, pwd, fname))
@@ -276,6 +278,7 @@ class ServerProtocol(Protocol):
             pwd, fname = data[2:]
             r = self.db_manager.delete_from_followings(name, pwd, fname)
             return str(r)
+        # update pending films and unliked
         elif request == 120:
             pwd, status, films = data[2:]
             status = [int(s) for s in status.split('::')]
@@ -285,17 +288,21 @@ class ServerProtocol(Protocol):
             res = self.db_manager.add_to_pendings(name, pwd, pdg)
             res = str(res * self.db_manager.add_to_unliked(name, pwd, ulkd))
             return res
+        # delete pendings
         elif request == 130:
             pwd, film = data[2:]
             r = self.db_manager.delete_from_pendings(name, pwd, film)
             return str(r)
+        # add to favorite
         elif request == 140:
             pwd, film = data[2:]
             return str(self.db_manager.add_to_favorites(name, pwd, film))
+        # delete from favorite
         elif request == 150:
             pwd, film = data[2:]
             r = self.db_manager.delete_from_favorites(name, pwd, film)
             return str(r)
+        # get pending films
         elif request == 160:
             pwd, start_idx, end_idx = data[2], int(data[3]), int(data[4])
             films = self.db_manager.get_pendings(name, pwd)[start_idx:end_idx]
@@ -304,6 +311,7 @@ class ServerProtocol(Protocol):
             result = [';'.join([str(a) for a in f]) for f in films]
             result = ['(%s)' % r for r in result]
             return '160::[%s]' % '-'.join(r for r in result)
+        # get film infos
         elif request == 170:
             fid = name
             result = self.db_manager.get_film_info(fid)

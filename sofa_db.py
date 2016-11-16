@@ -585,13 +585,11 @@ class DBManager():
 
 #reload(sys)
 #sys.setdefaultencoding('utf8')
-
-
-print('a')
-
 dbm = DBManager()
-print(dbm.check_log_in_info('Robin','pwc'))
-print('a')
-print(dbm.add_user('Rob','pwc'))
+
 #dbm.__delete_tables__()
 #dbm.__create_tables__()
+
+#print(dbm.add_user('Rob','pwc'))
+print(dbm.check_log_in_info('Robin','pwc'))
+
