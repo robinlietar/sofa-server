@@ -576,7 +576,7 @@ class DBManager():
 
     def get_pendings(self, name, pwd):
         session = Session(self.engine)
-        pendings = session.query(User, Film)
+        pendings = session.qYuery(User, Film)
         pendings = pendings.filter(User.pending.any(Film.id))
         pendings = pendings.filter(User.name==name).filter(User.pwd==pwd)
         return [p[1] for p in pendings]
@@ -592,3 +592,4 @@ dbm = DBManager()
 
 #print(dbm.add_user('Rob','pwc'))
 print(dbm.check_log_in_info('Robin','pwc'))
+
